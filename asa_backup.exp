@@ -1,0 +1,437 @@
+#!/usr/bin/expect -f
+# ============================================================================
+# Backup of Cisco ASA firewalls with multiple contexts.
+# ============================================================================
+
+exp_internal 0
+log_user 1
+
+
+# ----------------------------------------------------------------------------
+# Constants
+# ----------------------------------------------------------------------------
+set ASA_USER        "backup"
+set ASA_ENABLE      6
+set BACKUP_USER     "ciscobackup"
+set BACKUP_HOST     "123.123.123.123"
+set PASSWORD_FILE   "$::env(HOME)/.backuppw"
+
+
+# ----------------------------------------------------------------------------
+# abort
+# ----------------------------------------------------------------------------
+# Prints the string given as argument out to stderr and exits.
+#
+proc abort {message } {
+  puts stderr "ABORT: ${message}\n"
+  exit 1
+}
+
+
+# ----------------------------------------------------------------------------
+# sanitize_hostname
+# ----------------------------------------------------------------------------
+# Removes every non-allowed character from string. Keep shell argument safe.
+#
+proc sanitize_hostname {string1} {
+  set string2 ""
+  regsub -all -- {[^A-Za-z0-9\.\-]+} $string1 {} string2
+  return $string2
+}
+
+
+# ----------------------------------------------------------------------------
+# sanitize_dir
+# ----------------------------------------------------------------------------
+# Removes every non-allowed character from string. Keep shell argument safe.
+#
+proc sanitize_dir {string1} {
+  set string2 ""
+  regsub -all -- {[^A-Za-z0-9_/\.\-]+} $string1 {} string2
+  return $string2
+}
+
+
+# ----------------------------------------------------------------------------
+# get_retention_suffix
+# ----------------------------------------------------------------------------
+# Define retention filename suffix for simple retention algorithm:
+# Daily up to 7 per week
+# Monthly up to 12 per year on 1st day of month.
+# Yearly up to forever on 1st of January
+# Run script daily after midnight.
+#
+proc get_retention_suffix {} {
+  set year    [timestamp -format %Y]
+  set month   [timestamp -format %m]
+  set day     [timestamp -format %d]
+  set weekday [timestamp -format %w]
+
+  if {$day == 1 && $month == 1} {
+    set suffix "yearly_${year}"
+  } elseif {$day == 1} {
+    set suffix "monthly_${month}"
+  } else {
+    set suffix "daily_${weekday}"
+  }
+  return $suffix
+}
+
+
+# ----------------------------------------------------------------------------
+# read_password
+# ----------------------------------------------------------------------------
+# Reads passwords from file defined in $PASSWORD_FILE given as argument. Trims
+# any trailing newlines and spaces.
+#
+proc read_password {pwfile} {
+  set password ""
+  if {![file exist $pwfile]} {
+    abort "Password file $pwfile does not exist!"
+  } else {  
+    set fp [open $pwfile r]
+    set data [read $fp]
+    close $fp
+    regsub {[\n\r\t ]+$} $data {} password
+  }
+  return $password
+} 
+
+
+# ----------------------------------------------------------------------------
+# connect_firewall
+# ----------------------------------------------------------------------------
+# Connects via SSH to firewall. Accept new host key if necessary. Then enable
+# privileged exec mode.
+#
+proc connect_firewall {asa_user asa_host asa_enable password} {
+  global prompt
+  global spawn_id
+
+  # Connect via SSH to firewall. Accept new host key if necessary.
+  send_user -- "Connecting to ${asa_user}@${asa_host} ...\n"
+  spawn ssh "${asa_user}@${asa_host}"
+  expect {
+    -re {The authenticity of host .* can.t be established.} {exp_continue}
+    -re {RSA key fingerprint is} {exp_continue}
+    -re {Are you sure you want to continue connecting \(yes/no\)\?} { send -- "yes\r"; exp_continue }
+    -re {Warning: Permanently added .* to the list of known hosts.} { exp_continue }
+    -re {User .* logged in to} { exp_continue }
+    -re $prompt {}
+    timeout { abort "Timeout at ssh login" }
+    default { abort "Unknown condition occured at ssh login." }
+  }
+
+  # Enable privileged exec mode.
+  send_user -- "Enable privileged exec mode ...\n"
+  send -- "enable ${asa_enable}\r"
+  expect {
+    "Password: " {}
+    "No password set for privilege level" { exit 1 }
+    default { abort "Unknown condition occured at enable." }
+  }
+  send -- "${password}\r"
+  expect {
+    default { abort "Unknown condition occured at enable password." }
+    timeout { abort "Timeout occured at enable password." }
+    "Invalid password" { abort "Invalid password" }
+    "Access denied"    { abort "Access denied" }
+    -re $prompt {}
+  }
+  expect -re {.*} # Flush buffer
+  return
+}
+
+
+# ----------------------------------------------------------------------------
+# get_version
+# ----------------------------------------------------------------------------
+# Returns the ASA software version as floating point decimal number.
+# Cisco ASA version numbering is major.minor, which means that 9.12 is 
+# greather than 9.3 for example. Convert to decimal for mathematical 
+# comparison. 9.12 becomes 9.012 and 9.3 becomes 9.003 for example.
+# A thousand minor versions should be enough. :-)
+#
+proc get_version {} {
+  global prompt
+  global spawn_id
+  set version_major ""
+  set version_minor "" 
+  expect -re {.*} # Flush buffer
+  send_user -- "Checking for ASA version ..."
+  send -- "show version | include ^Cisco.*Appliance.*Version\r"
+  expect {
+    default { abort "Unknown condition occured at show version" }
+    timeout { abort "Timeout occured at show version." }
+    -re {Cisco.*Appliance Software Version ([0-9]+)\.([0-9]+)} {
+           set version_major $expect_out(1,string)
+           set version_minor $expect_out(2,string)
+         } 
+    -re $prompt {}
+  }
+  set version_float [expr { $version_major + $version_minor/1000.0}]
+  expect -re {.*} # Flush buffer
+  return $version_float
+}
+
+
+# ----------------------------------------------------------------------------
+# get_context_mode
+# ----------------------------------------------------------------------------
+# Queries context mode of the ASA firewall. Change to system context if ASA
+# has multiple contexts. Returns context mode (single, multiple).
+#
+proc get_context_mode {} {
+  global prompt
+  global spawn_id
+  set context_mode ""
+  send_user -- "Checking context mode ...\n"
+  send -- "show mode\r"
+  expect {
+    -re {context mode: single}   {set context_mode "single"}
+    -re {context mode: multiple} {set context_mode "multiple"}
+    -re $prompt {}
+    timeout { abort "Timeout at 'show mode'" }
+    default { abort "Unknown condition occured at 'show mode'" }
+  }
+
+  if {$context_mode eq "multiple"} {
+    send_user -- "Multiple contexts: Changing to system context ...\n"
+    send -- "changeto system\r"
+    expect {
+      -re $prompt {}
+      default { abort "Unknown condition occured at 'changeto system'" }
+    }
+  }
+  expect -re {.*} # Flush buffer
+  return $context_mode
+}
+
+
+# ----------------------------------------------------------------------------
+# get_contexts
+# ----------------------------------------------------------------------------
+# Show contexts, parse output, append context names into list contexts.
+# Returns list of context names, starting with system.
+#
+proc get_contexts {} {
+  global prompt
+  global spawn_id
+  set contexts [list system]
+  send -- "show context\r"
+  expect {
+    default { abort "Unknown condition occured at 'show context'" }
+    timeout { abort "Timeout condition occured at 'show context'" }
+    -re $prompt {}
+  }
+  foreach line [split $expect_out(buffer) "\n"] {
+    send_user -- "Line: '$line'"
+    if {[regexp {^[ \*]([A-Za-z0-9\-]+)} $line match0 match1]} {
+      lappend contexts $match1
+    }
+  }
+  expect -re {.*} # Flush buffer
+  return $contexts
+}
+
+
+# ----------------------------------------------------------------------------
+# get_interface_hack
+# ----------------------------------------------------------------------------
+# When accessing ASA through a VPN tunnel and doing a copy command, the ASA
+# uses the public interface IP as source address. The copy command then fails
+# because traffic is not encrypted through the VPN tunnel. Appending the 
+# option ";int=inside" is an undocumented hack to use the inside IP address
+# instead. Works only for the copy command, not for the backup command.
+#
+proc get_interface_hack {} {
+  global prompt
+  global spawn_id
+  set interface_hack ""
+  send -- "show interface | include inside\r"
+  expect {
+    default { abort "Unknown condition occured at 'show mode'" }
+    timeout { abort "Timeout at 'show mode'" }
+    -re {Interface.*inside.*is up} {set interface_hack ";int=inside"; exp_continue}
+    -re {ERROR: % Invalid input detected at} {exp_continue}
+    -re $prompt {}
+  }
+  send_user -- "Interface hack: '$interface_hack'\n"
+  expect -re {.*} # Flush buffer
+  return $interface_hack
+}
+
+
+# ----------------------------------------------------------------------------
+# copy_file
+# ----------------------------------------------------------------------------
+# Does what you expect. Copies a file from source to destination. Applies the
+# inside interface hack for source NAT over VPN.
+#
+proc copy_file {source destination} {
+  global prompt
+  global spawn_id
+  global interface_hack
+  expect -re {.*} # Flush buffer
+  send -- "copy /noconfirm ${source} ${destination}${interface_hack}\r"
+  expect {
+    default { abort "Unknown condition occured at copy ${source}." }
+    timeout { abort "Timeout occured at copy ${source}." }
+    -re {!+} {exp_continue}
+    -re {INFO: No digital signature found} {exp_continue}
+    -re {bytes copied in .* secs} {exp_continue}
+    -re {No such file or directory} { abort "No such file or directory" }
+    -re $prompt {}
+  }
+  expect -re {.*} # Flush buffer
+  return
+}
+
+
+# ----------------------------------------------------------------------------
+# delete_file
+# ----------------------------------------------------------------------------
+proc delete_file {filename} {
+  global prompt
+  global spawn_id
+  expect -re {.*} # Flush buffer
+  send -- "delete /noconfirm ${filename}\r"
+  expect {
+    default { abort "Unknown condition occured at delete ${filename}." }
+    timeout { abort "Timeout occured at delete ${filename}." }
+    -re {No such file or directory} { abort "No such file or directory" }
+    -re $prompt {}
+  }
+  expect -re {.*} # Flush buffer
+  return
+}
+
+
+# ----------------------------------------------------------------------------
+# copy_tech_support
+# ----------------------------------------------------------------------------
+# Sending tech-support directly to scp path fails. Copy first to flash disk,
+# then copy, then delete.
+#
+proc copy_tech_support {backup_url suffix } {
+  global prompt
+  global spawn_id
+  expect -re {.*} # Flush buffer
+  send_user -- "Collecting tech-support ...\n"
+  send -- "show tech-support file flash:/tmp_tech-support.txt\r"
+  expect {
+    default { abort "Unknown condition occured at show tech-support" }
+    timeout { abort "Timeout occured at show tech-support" }
+    -re {INFO: No digital signature found} {exp_continue}
+    -re $prompt {}
+  }
+
+  copy_file "flash:/tmp_tech-support.txt " "${backup_url}/tech-support_${suffix}.txt"
+  delete_file "flash:/tmp_tech-support.txt"
+  expect -re {.*} # Flush buffer
+  return
+}
+
+
+# ----------------------------------------------------------------------------
+# run_backup
+# ----------------------------------------------------------------------------
+# First run a backup to flash disk and then copy it via scp due to Cisco bug
+# CSCvh02142. Backup of WebVPN data fails in multiple contexts.
+#
+proc run_backup {context_mode password backup_url suffix {context ""}} {
+  global prompt
+  global spawn_id
+  expect -re {.*} # Flush buffer
+  if {$context_mode eq "single"} {
+    set backup_cmd "backup /noconfirm passphrase ${password} location flash:/backup.tar.gz\r"
+    set backup_url_file "${backup_url}/backup_${suffix}.tar.gz"
+  } else {
+    set backup_cmd "backup /noconfirm context ${context} passphrase ${password} location flash:/backup.tar.gz\r"
+    set backup_url_file "${backup_url}/backup_${context}_${suffix}.tar.gz"
+  }
+  send -- $backup_cmd
+  expect {
+    default { abort "Unknown condition occured at backup." }
+    timeout { abort "Timeout occured at backup." }
+    -re {Invalid input detected at} {abort "Backup command invalid" }
+    -re {Warning: This device is part of a failover set up.} {exp_continue}
+    -re {Begin backup} {exp_continue}
+    -re {Backing up.*Done} {exp_continue}
+    -re {Compressing the backup directory.*Done} {exp_continue}
+    -re {Copying Backup.*Done} {exp_continue}
+    -re {Cleaning up.*Done} {exp_continue}
+    -re {Backup finished} {exp_continue}
+    -re $prompt {}
+  }
+
+  copy_file "flash:/backup.tar.gz" "${backup_url_file}"
+  delete_file "flash:/backup.tar.gz"
+  expect -re {.*} # Flush buffer
+  return
+}
+
+
+# ----------------------------------------------------------------------------
+# Main 
+# ----------------------------------------------------------------------------
+
+if {$argc != 2} {
+  abort "Usage: ${argv0} <hostname> <destdir>"
+}
+
+set asa_host [sanitize_hostname [lindex $argv 0]]
+set dest_dir [sanitize_dir [lindex $argv 1]]
+set password [read_password $PASSWORD_FILE]
+set backup_url "scp://${BACKUP_USER}:${password}@${BACKUP_HOST}/${dest_dir}"
+set prompt {[a-z0-9\-/]*[>\#] $}
+set suffix [get_retention_suffix]
+
+# Create destination directory if it not exists.
+if {[file exist $dest_dir] && ! [file isdirectory $dest_dir]} {
+  abort "Destination ${dest_dir} exists, but it is not a directory!"
+} else {
+  file mkdir $dest_dir
+}
+
+send_user -- "\n\n"
+send_user -- "------------------------------------------------------------\n"
+send_user -- "Cisco ASA to back up : ${asa_host}\n"
+send_user -- "Destination directory: ${dest_dir}\n"
+send_user -- "------------------------------------------------------------\n"
+
+connect_firewall $ASA_USER $asa_host $ASA_ENABLE $password
+
+set context_mode [get_context_mode]
+set interface_hack [get_interface_hack]
+set version [get_version]
+
+copy_tech_support $backup_url $suffix
+
+if {$version >= 9.003} {
+  # The backup command was added with ASA version 9.3(2).
+  # It contains the running-config, startup-config, certificates and if there
+  # was no bug with multiple contexts, also webvpn data such as anyconnect
+  # packages.
+  if {$context_mode eq "single"} {
+    send_user -- "Single context: Backing up ...\n"
+    run_backup $context_mode $password $backup_url $suffix
+  } else {
+    send_user -- "Multiple contexts: Getting context names ...\n"
+    set contexts [get_contexts]
+
+    # Iterate through list of contexts and do backup to scp destination.
+    foreach context $contexts {
+      send_user -- "Backing up context $context ...\n"
+      run_backup $context_mode $password $backup_url $suffix $context
+    }
+  }
+} else {
+  # Legacy ASA version. No backup command. Copy running and startup config.
+  # No export of keys and certificates in pkcs#12 format.
+  copy_file "running-config" "${backup_url}/running-config_${suffix}.cfg"
+  copy_file "startup-config" "${backup_url}/startup-config_${suffix}.cfg"
+}
+
+send -- "exit\r"
+send_user -- "Finished backup.\n"
