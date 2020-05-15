@@ -43,6 +43,7 @@ chmod 400 ~/.backuppw
 
 The script uses a simple retention algorithm to keep daily versions for a week, monthly version on every first of the month and yearly version on every first January. Example shown for a firewall with contexts system, admin and web:
 
+```
 ciscobackup@backuphost:~> ls -al firewall1
 total 4736
 drwx------  2 ciscobackup ciscobackup   4096 May 10 00:05 .
@@ -92,6 +93,7 @@ drwx------ 12 ciscobackup ciscobackup   4096 May  5 09:37 ..
 -rw-r--r--  1 ciscobackup ciscobackup 366656 May  9 00:05 tech-support_daily_6.txt
 -rw-r--r--  1 ciscobackup ciscobackup 366054 May  1 00:05 tech-support_monthly_05.txt
 -rw-r--r--  1 ciscobackup ciscobackup 366054 Jan  1 00:05 tech-support_yearly_2020.txt
+```
 
 # Open Issues
 
