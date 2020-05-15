@@ -32,6 +32,15 @@ Create a crontab entry on the backup host and run this script daily after midnig
 07 00 * * *	/usr/local/bin/asa_backup.exp firewall3-admin.example.com /mnt/backup/cisco/firewall3
 ```
 
+Save the password used for enable and the scp command into a file in the user's home directory and make it readable by the owner only.
+
+```
+echo -n "mysecretpassword" >~/.backuppw
+chmod 400 ~/.backuppw
+```
+
+# Retention Algorithm
+
 The script uses a simple retention algorithm to keep daily versions for a week, monthly version on every first of the month and yearly version on every first January. Example shown for a firewall with contexts system, admin and web:
 
 ciscobackup@backuphost:~> ls -al firewall1
