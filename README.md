@@ -23,86 +23,96 @@ privilege show level 6 mode exec command tech-support
 
 Unfortunately Cisco ASA does not support public key authentication for doing scp from the ASA to the backup host. Hence the password must be provided on the command line in clear text. What a shame for a company that sells security devices.
 
+Copy Python script asa_backup.py to /usr/local/bin and run it once. It creates a template YAML formatted config file at ~/.asa_backup.yaml. Update it wit the firewalls, backup server and credentials:
+
+```
+defaults:
+  device-type: cisco_asa
+  conn-timeout: 30
+  read-timeout: 1800
+  username: asa-username
+  password: YoUr.AsApAsSwOrD.HeRe
+  ssh-key: ~/.ssh/id_rsa
+  backup-host: 10.0.x.y
+  backup-username: backup-username
+  backup-password: YoUr.BaCkUpSerVeRpAsSwOrD.HeRe
+  backup-dir: /mnt/backup/cisco/asa
+
+firewalls:
+  asa1:
+    hostname: asa1-admin.example.com
+    enable-secret: YoUr.EnAbLeSeCrEt.HeRe
+  asa2:
+    hostname: asa2-admin.example.com
+    enable-secret: YoUr.EnAbLeSeCrEt.HeRe
+```
+
 Create a crontab entry on the backup host and run this script daily after midnight:
 
 ```
 # Backup Cisco ASA/Firepower firewalls.
-05 00 * * *	/usr/local/bin/asa_backup.exp firewall1-admin.example.com /mnt/backup/cisco/firewall1
-06 00 * * *	/usr/local/bin/asa_backup.exp firewall2-admin.example.com /mnt/backup/cisco/firewall2
-07 00 * * *	/usr/local/bin/asa_backup.exp firewall3-admin.example.com /mnt/backup/cisco/firewall3
-```
-
-Save the password used for enable and the scp command into a file in the user's home directory and make it readable by the owner only.
-
-```
-echo -n "mysecretpassword" >~/.backuppw
-chmod 400 ~/.backuppw
+05 00 * * *	/usr/local/bin/asa_backup.py -f asa1
+06 00 * * *	/usr/local/bin/asa_backup.py -f asa2
 ```
 
 # Retention Algorithm
 
-The script uses a simple retention algorithm to keep daily versions for a week, monthly version on every first of the month and yearly version on every first January. Example shown for a firewall with contexts system, admin and web:
+The script uses a simple retention algorithm to keep daily versions for a week, monthly version on every first of the month and yearly version on every first January. Example shown for a firewall with contexts system, admin, web1, web2:
 
 ```
-ciscobackup@backuphost:~> ls -al firewall1
-total 4736
-drwx------  2 ciscobackup ciscobackup   4096 May 10 00:05 .
-drwx------ 12 ciscobackup ciscobackup   4096 May  5 09:37 ..
--rw-r--r--  1 ciscobackup ciscobackup  49295 May 10 00:05 backup_admin_daily_0.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49292 May  4 09:57 backup_admin_daily_1.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49296 May 12 00:05 backup_admin_daily_2.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49285 May 13 00:05 backup_admin_daily_3.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49293 May 14 00:05 backup_admin_daily_4.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49290 May 15 00:05 backup_admin_daily_5.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49295 May  9 00:05 backup_admin_daily_6.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  49295 Feb  1 00:05 backup_admin_monthly_02.txt
--rw-r--r--  1 ciscobackup ciscobackup  49295 Mar  1 00:05 backup_admin_monthly_03.txt
--rw-r--r--  1 ciscobackup ciscobackup  49295 Apr  1 00:05 backup_admin_monthly_04.txt
--rw-r--r--  1 ciscobackup ciscobackup  49295 May  1 00:05 backup_admin_monthly_05.txt
--rw-r--r--  1 ciscobackup ciscobackup  49295 Jan  1 00:05 backup_admin_yearly_2020.txt
--rw-r--r--  1 ciscobackup ciscobackup  46494 May 10 00:05 backup_system_daily_0.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46490 May  4 09:57 backup_system_daily_1.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46498 May 12 00:05 backup_system_daily_2.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46490 May 13 00:05 backup_system_daily_3.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46492 May 14 00:05 backup_system_daily_4.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46498 May 15 00:05 backup_system_daily_5.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46493 May  9 00:05 backup_system_daily_6.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  46493 Feb  1 00:05 backup_system_monthly_02.txt
--rw-r--r--  1 ciscobackup ciscobackup  46493 Mar  1 00:05 backup_system_monthly_03.txt
--rw-r--r--  1 ciscobackup ciscobackup  46493 Apr  1 00:05 backup_system_monthly_04.txt
--rw-r--r--  1 ciscobackup ciscobackup  46493 May  1 00:05 backup_system_monthly_05.txt
--rw-r--r--  1 ciscobackup ciscobackup  46493 Jan  1 00:05 backup_system_yearly_2020.txt
--rw-r--r--  1 ciscobackup ciscobackup  85243 May 10 00:05 backup_web_daily_0.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85241 May  4 00:05 backup_web_daily_1.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85231 May 12 00:05 backup_web_daily_2.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85242 May 13 00:05 backup_web_daily_3.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85477 May 14 00:05 backup_web_daily_4.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85471 May 15 00:05 backup_web_daily_5.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85253 May  9 00:05 backup_web_daily_6.tar.gz
--rw-r--r--  1 ciscobackup ciscobackup  85253 Feb  1 00:05 backup_web_monthly_02.txt
--rw-r--r--  1 ciscobackup ciscobackup  85253 Mar  1 00:05 backup_web_monthly_03.txt
--rw-r--r--  1 ciscobackup ciscobackup  85253 Apr  1 00:05 backup_web_monthly_04.txt
--rw-r--r--  1 ciscobackup ciscobackup  85253 May  1 00:05 backup_web_monthly_05.txt
--rw-r--r--  1 ciscobackup ciscobackup  85253 Jan  1 00:05 backup_web_yearly_2020.txt
--rw-r--r--  1 ciscobackup ciscobackup 366798 May 10 00:05 tech-support_daily_0.txt
--rw-r--r--  1 ciscobackup ciscobackup 363849 May  4 09:57 tech-support_daily_1.txt
--rw-r--r--  1 ciscobackup ciscobackup 367125 May 12 00:05 tech-support_daily_2.txt
--rw-r--r--  1 ciscobackup ciscobackup 367974 May 13 00:05 tech-support_daily_3.txt
--rw-r--r--  1 ciscobackup ciscobackup 368130 May 14 00:05 tech-support_daily_4.txt
--rw-r--r--  1 ciscobackup ciscobackup 367974 May 15 00:05 tech-support_daily_5.txt
--rw-r--r--  1 ciscobackup ciscobackup 366656 May  9 00:05 tech-support_daily_6.txt
--rw-r--r--  1 ciscobackup ciscobackup 366054 May  1 00:05 tech-support_monthly_05.txt
--rw-r--r--  1 ciscobackup ciscobackup 366054 Jan  1 00:05 tech-support_yearly_2020.txt
+> tree -d asa1
+asa1
+├── daily_0
+├── daily_1
+├── daily_2
+├── daily_3
+├── daily_4
+├── daily_5
+├── daily_6
+├── monthly_02
+├── monthly_03
+├── monthly_04
+├── monthly_05
+├── monthly_06
+├── monthly_07
+├── monthly_08
+├── monthly_09
+├── monthly_10
+├── monthly_11
+├── monthly_12
+├── yearly_2021
+├── yearly_2022
+├── yearly_2023
+└── yearly_2024
+
+> tree asa1/daily_0
+asa1/daily_0
+├── backup_admin_active.tar.gz
+├── backup_admin_standby.tar.gz
+├── backup_system_active.tar.gz
+├── backup_system_standby.tar.gz
+├── backup_web1_active.tar.gz
+├── backup_web1_standby.tar.gz
+├── backup_web2_active.tar.gz
+├── backup_web2_standby.tar.gz
+├── context_admin_active.cfg
+├── context_admin_standby.cfg
+├── context_web1_active.cfg
+├── context_web1_standby.cfg
+├── context_web2_active.cfg
+├── context_web2_standby.cfg
+├── running-config_active.cfg
+├── running-config_standby.cfg
+├── session.log
+├── startup-config_active.cfg
+├── startup-config_standby.cfg
+├── tech-support_active.txt
+└── tech-support_standby.txt
 ```
-
-# Open Issues
-
- - Use public key authentication for backup to scp destination, so no passwords need to be hardcoded in this script. How to? Can't find Cisco doc. Not supported by Cisco. Shame.
- - Better error handling.
- - Send mail alert on failures.
 
 # Changes
 
+- 2024-06-18: Rewrote Expect/TCL to Python using Netmiko library. Also backing up configuration of standby device. Check if configs on active and standby do match.
 - 2020-04-15: Published to github.
 - 2020-05-06: Always flush buffer at end of proc. Config file suffix .cfg. Check for inside interface without errors. Check for software version and do backup only if version >= 9.3.
 - 2020-05-05: Applied inside interface hack for VPN. Better error handling.
