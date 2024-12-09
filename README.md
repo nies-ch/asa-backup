@@ -23,7 +23,7 @@ privilege show level 6 mode exec command tech-support
 
 Unfortunately Cisco ASA does not support public key authentication for doing scp from the ASA to the backup host. Hence the password must be provided on the command line in clear text. What a shame for a company that sells security devices.
 
-Copy Python script asa_backup.py to /usr/local/bin and run it once. It creates a template YAML formatted config file at ~/.asa_backup.yaml. Update it wit the firewalls, backup server and credentials:
+Copy Python script asa_backup.py to /usr/local/bin and run it once. It creates a template YAML formatted config file at ~/.asa_backup.yaml. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
 
 ```
 defaults:
@@ -47,6 +47,7 @@ firewalls:
     enable-secret: YoUr.EnAbLeSeCrEt.HeRe
 ```
 
+When running again, the script reads the config from the YAML file.
 Create a crontab entry on the backup host and run this script daily after midnight:
 
 ```
