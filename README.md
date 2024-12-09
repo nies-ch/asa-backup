@@ -48,6 +48,7 @@ firewalls:
     hostname: asa2-admin.example.com
     enable-secret: YoUr.EnAbLeSeCrEt.HeRe
 ··········8<··········
+root@backuphost:~> chmod 600 ~/.asa_backup.yaml
 ```
 
 When running again, the script reads the config from the YAML file.
