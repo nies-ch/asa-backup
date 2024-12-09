@@ -26,6 +26,8 @@ Unfortunately Cisco ASA does not support public key authentication for doing scp
 Copy Python script asa_backup.py to /usr/local/bin and run it once. It creates a template YAML formatted config file at ~/.asa_backup.yaml. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
 
 ```
+# vi ~/.asa_backup.yaml
+··········8<··········
 defaults:
   device-type: cisco_asa
   conn-timeout: 30
@@ -45,6 +47,7 @@ firewalls:
   asa2:
     hostname: asa2-admin.example.com
     enable-secret: YoUr.EnAbLeSeCrEt.HeRe
+··········8<··········
 ```
 
 When running again, the script reads the config from the YAML file.
