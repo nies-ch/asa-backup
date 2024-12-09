@@ -26,7 +26,7 @@ Unfortunately Cisco ASA does not support public key authentication for doing scp
 Copy Python script asa_backup.py to /usr/local/bin and run it once. It creates a template YAML formatted config file at ~/.asa_backup.yaml. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
 
 ```
-root@backuphost:~> vi ~/.asa_backup.yaml
+backupuser@backuphost:~> vi ~/.asa_backup.yaml
 ··········8<··········
 defaults:
   device-type: cisco_asa
@@ -48,14 +48,14 @@ firewalls:
     hostname: asa2-admin.example.com
     enable-secret: YoUr.EnAbLeSeCrEt.HeRe
 ··········8<··········
-root@backuphost:~> chmod 600 ~/.asa_backup.yaml
+backupuser@backuphost:~> chmod 600 ~/.asa_backup.yaml
 ```
 
 When running again, the script reads the config from the YAML file.
 Create a crontab entry on the backup host and run this script daily after midnight:
 
 ```
-root@backuphost:~> crontab -e
+backupuser@backuphost:~> crontab -e
 ··········8<··········
 # Backup Cisco ASA/Firepower firewalls.
 05 00 * * *	/usr/local/bin/asa_backup.py -f asa1
@@ -68,7 +68,7 @@ root@backuphost:~> crontab -e
 The script uses a simple retention algorithm to keep daily versions for a week, monthly version on every first of the month and yearly version on every first January. Example shown for a firewall with contexts system, admin, web1, web2:
 
 ```
-root@backuphost:~> tree -d /mnt/backup/cisco/asa/asa1
+backupuser@backuphost:~> tree -d /mnt/backup/cisco/asa/asa1
 asa1
 ├── daily_0
 ├── daily_1
@@ -93,7 +93,7 @@ asa1
 ├── yearly_2023
 └── yearly_2024
 
-root@backuphost:~> tree /mnt/backup/cisco/asa/asa1/daily_0
+backupuser@backuphost:~> tree /mnt/backup/cisco/asa/asa1/daily_0
 asa1/daily_0
 ├── backup_admin_active.tar.gz
 ├── backup_admin_standby.tar.gz
