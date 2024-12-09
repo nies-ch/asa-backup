@@ -48,6 +48,12 @@ firewalls:
     hostname: asa2-admin.example.com
     enable-secret: YoUr.EnAbLeSeCrEt.HeRe
 ··········8<··········
+```
+
+Verify YAML syntax and adjust permissions that only current user can read the file as it contains passwords.
+
+```
+backupuser@backuphost:~> yamllint ~/.asa_backup.yaml
 backupuser@backuphost:~> chmod 600 ~/.asa_backup.yaml
 ```
 
