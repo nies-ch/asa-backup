@@ -59,6 +59,7 @@ defaults:
   read-timeout: 1800
   username: asa-username
   password: YoUr.AsApAsSwOrD.HeRe
+  use-key: True
   ssh-key: ~/.ssh/id_rsa
   backup-host: 10.0.x.y
   backup-username: backup-username
@@ -485,7 +486,7 @@ def backup_firewall(cfg, fw):
         "read_timeout_override": cfg["firewalls"][fw]["read-timeout"],
         "conn_timeout":          cfg["firewalls"][fw]["conn-timeout"],
         "session_log":           destdir + "/" + "session.log",
-        "use_keys":              True,
+        "use_keys":              cfg["firewalls"][fw]["use-key"],
         "key_file":              cfg["firewalls"][fw]["ssh-key"],
         "disable_sha2_fix":      True,
         "verbose":               True,
