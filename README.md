@@ -27,11 +27,11 @@ Unfortunately Cisco ASA does not support public key authentication for doing scp
 
 ## Backup Host
 
-This script was tested with Python 3.11 and Netmiko 4.3.0 on RHEL 8. Other versions may or may not run. Python compatibility is very volatile. Best you create an virtual Python environment in `/usr/local/bin` (or elsewhere, e. g. in the user's home directory) before updating modules with pip. Otherwise it could break other tools using Python.
+This script was tested with Python 3.11, Paramiko 3.4.0 and Netmiko 4.3.0 on RHEL 8. Other versions may or may not run. Python compatibility is very volatile. Best you create an virtual Python environment in `/usr/local/bin` (or elsewhere, e. g. in the user's home directory) before updating modules with pip. Otherwise it could break other tools using Python.
 
 ```
 backupuser@backuphost:~> python3.11 -m venv /usr/local/
-backupuser@backuphost:~> /usr/local/bin/python3.11 -m pip install netmiko
+backupuser@backuphost:~> /usr/local/bin/python3.11 -m pip install paramiko netmiko
 ```
 
 Copy Python script `asa_backup.py` to `/usr/local/bin` (or elsewhere) and adjust the Python path in the shebang (first line of script that starts with `#!` if necessary. Run script once without arguments. It creates a template YAML formatted config file in the current user's home directory at `~/.asa_backup.yaml`. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
