@@ -1,8 +1,10 @@
 # Cisco ASA Multiple Context Firewall Backup
 
-This expect script is executed on a backup host and connects to a Cisco ASA firewall using SSH. It detects whether the firewall is configured with multiple security contexts and whether the firewall supports the new backup command added with version 9.3. The backups are first written to the internal flash drive and then copied with scp to the backup server. It also works through a VPN tunnel by applying the undocumented hack ";int=inside" to the destination URL. Due to a bug on Cisco ASA the backup command does not backup webvpn data (profiles, anyconnect packages) when the firewall is in multiple context mode.
+This expect script is executed on a backup host and connects to a Cisco ASA firewall using SSH. It detects whether the firewall is configured with multiple security contexts and whether the firewall supports the new backup command added with version 9.3. The backups are first written to the internal flash drive and then copied with scp to the backup server. It also works through a VPN tunnel by applying the undocumented hack `;int=inside` to the destination URL. Due to a bug on Cisco ASA the backup command does not backup webvpn data (profiles, anyconnect packages) when the firewall is in multiple context mode.
 
 # Installation
+
+## ASA Firewall
 
 On the Cisco ASA firewall a backup user with the following minimal privileges is required in the admin and system contexts. Replace password and public keys with the real ones. The SSH authentication key is from the user on the backup host under which this script is running.
 
@@ -23,7 +25,16 @@ privilege show level 6 mode exec command tech-support
 
 Unfortunately Cisco ASA does not support public key authentication for doing scp from the ASA to the backup host. Hence the password must be provided on the command line in clear text. What a shame for a company that sells security devices.
 
-Copy Python script asa_backup.py to /usr/local/bin and run it once. It creates a template YAML formatted config file at ~/.asa_backup.yaml. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
+## Backup Host
+
+This script was tested with Python 3.11 and Netmiko 4.3.0 on RHEL 8. Other versions may or may not run. Python compatibility is very volatile. Best you create an virtual Python environment in `/usr/local/bin` (or elsewhere) before updating modules with pip. Otherwise it could break other tools using Python.
+
+```
+python3.11 -m venv /usr/local/
+/usr/local/bin/python3.11 -m pip install netmiko
+```
+
+Copy Python script `asa_backup.py` to `/usr/local/bin` and run it once. It creates a template YAML formatted config file in the current user's home directory at `~/.asa_backup.yaml`. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
 
 ```
 backupuser@backuphost:~> vi ~/.asa_backup.yaml
