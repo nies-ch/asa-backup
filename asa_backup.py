@@ -137,6 +137,9 @@ def write_default_config_file():
             with open(file_path, 'w') as file:
                 file.write(CONFIG_DEFAULT)
             os.chmod(file_path, 0o600)
+            print(f"Configuration file created at {file_path} with example values.")
+            print("Adjust it according to your environment and rerun.")
+            sys.exit(0)
     except Exception as e:
         sys.exit(f"ERROR: Writing default config failed: {e}")
     return
