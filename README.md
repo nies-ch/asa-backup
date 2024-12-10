@@ -27,14 +27,14 @@ Unfortunately Cisco ASA does not support public key authentication for doing scp
 
 ## Backup Host
 
-This script was tested with Python 3.11 and Netmiko 4.3.0 on RHEL 8. Other versions may or may not run. Python compatibility is very volatile. Best you create an virtual Python environment in `/usr/local/bin` (or elsewhere) before updating modules with pip. Otherwise it could break other tools using Python.
+This script was tested with Python 3.11 and Netmiko 4.3.0 on RHEL 8. Other versions may or may not run. Python compatibility is very volatile. Best you create an virtual Python environment in `/usr/local/bin` (or elsewhere, e. g. in the user's home directory) before updating modules with pip. Otherwise it could break other tools using Python.
 
 ```
-python3.11 -m venv /usr/local/
-/usr/local/bin/python3.11 -m pip install netmiko
+backupuser@backuphost:~> python3.11 -m venv /usr/local/
+backupuser@backuphost:~> /usr/local/bin/python3.11 -m pip install netmiko
 ```
 
-Copy Python script `asa_backup.py` to `/usr/local/bin` and run it once. It creates a template YAML formatted config file in the current user's home directory at `~/.asa_backup.yaml`. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
+Copy Python script `asa_backup.py` to `/usr/local/bin` (or elsewhere) and adjust the Python path in the shebang (first line of script that starts with `#!` if necessary. Run script once without arguments. It creates a template YAML formatted config file in the current user's home directory at `~/.asa_backup.yaml`. Update the created YAML file according your environment with the firewalls, backup server and credentials. For example:
 
 ```
 backupuser@backuphost:~> vi ~/.asa_backup.yaml
@@ -137,6 +137,7 @@ asa1/daily_0
 
 # Changes
 
+- 2024-12-10: More explanation text in README.md and message when default config file has been created.
 - 2024-06-18: Rewrote Expect/TCL to Python using Netmiko library. Also backing up configuration of standby device. Check if configs on active and standby do match.
 - 2020-04-15: Published to github.
 - 2020-05-06: Always flush buffer at end of proc. Config file suffix .cfg. Check for inside interface without errors. Check for software version and do backup only if version >= 9.3.
