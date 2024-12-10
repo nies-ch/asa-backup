@@ -45,6 +45,7 @@ defaults:
   read-timeout: 1800
   username: asa-username
   password: YoUr.AsApAsSwOrD.HeRe
+  use-key: True
   ssh-key: ~/.ssh/id_rsa
   backup-host: 10.0.x.y
   backup-username: backup-username
@@ -137,7 +138,7 @@ asa1/daily_0
 
 # Changes
 
-- 2024-12-10: More explanation text in README.md and message when default config file has been created.
+- 2024-12-10: More explanation text in README.md and message when default config file has been created. Added option 'use-key' for enabling/disabling using SSH public key authentication
 - 2024-06-18: Rewrote Expect/TCL to Python using Netmiko library. Also backing up configuration of standby device. Check if configs on active and standby do match.
 - 2020-04-15: Published to github.
 - 2020-05-06: Always flush buffer at end of proc. Config file suffix .cfg. Check for inside interface without errors. Check for software version and do backup only if version >= 9.3.
